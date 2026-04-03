@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard | Makgobelo Lodge{% endblock %}
+{% block content %}
+<h1>Admin Dashboard</h1>
+
+<section class="stats-grid">
+  <div class="stat-card"><h3>Total Users</h3><p>{{ total_users }}</p></div>
+  <div class="stat-card"><h3>Total Rooms</h3><p>{{ total_rooms }}</p></div>
+  <div class="stat-card"><h3>Occupied Rooms</h3><p>{{ occupied_rooms }}</p></div>
+  <div class="stat-card"><h3>Available Rooms</h3><p>{{ available_rooms }}</p></div>
+  <div class="stat-card"><h3>Total Bookings</h3><p>{{ total_bookings }}</p></div>
+  <div class="stat-card"><h3>Pending Bookings</h3><p>{{ pending_bookings }}</p></div>
+  <div class="stat-card"><h3>Confirmed Bookings</h3><p>{{ confirmed_bookings }}</p></div>
+  <div class="stat-card"><h3>Cancelled Bookings</h3><p>{{ cancelled_bookings }}</p></div>
+</section>
+
+<section class="dashboard-section">
+  <h2>Users</h2>
+  <table class="dashboard-table">
+    <thead>
+      <tr>
+        <th>ID</th><th>Full Name</th><th>Email</th><th>Role</th><th>Verified</th><th>Active</th><th>Created At</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td>{{ user.user_id }}</td>
+        <td>{{ user.full_name }}</td>
+        <td>{{ user.email }}</td>
+        <td>{{ user.role }}</td>
+        <td>{{ 'Yes' if user.is_verified else 'No' }}</td>
+        <td>{{ 'Yes' if user.is_active else 'No' }}</td>
+        <td>{{ user.created_at }}</td>
+        <td>
+          {% if user.role != 'admin' %}
+          <form method="POST" action="{{ url_for('system.make_admin', user_id=user.user_id) }}" style="display:inline-block"><button type="submit" class="btn btn-sm">Make Admin</button></form>
+          {% if user.is_active %}
+          <form method="POST" action="{{ url_for('system.deactivate_user', user_id=user.user_id) }}" style="display:inline-block" onsubmit="return confirm('Are you sure you want to deactivate this client?');"><button type="submit" class="btn btn-danger btn-sm">Deactivate</button></form>
+          {% else %}
+          <form method="POST" action="{{ url_for('system.activate_user', user_id=user.user_id) }}" style="display:inline-block"><button type="submit" class="btn btn-sm">Activate</button></form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('system.delete_user', user_id=user.user_id) }}" style="display:inline-block" onsubmit="return confirm('Are you sure you want to permanently delete this client? This action cannot be undone.');"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
+          {% else %}
+          <span class="badge available">Admin</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="dashboard-section">
+  <h2>Bookings</h2>
+  <table class="dashboard-table">
+    <thead>
+      <tr>
+        <th>ID</th><th>Guest</th><th>Email</th><th>Room</th><th>Type</th><th>Check In</th><th>Check Out</th><th>Guests</th><th>Total</th><th>Status</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for booking in bookings %}
+      <tr>
+        <td>{{ booking.booking_id }}</td>
+        <td>{{ booking.full_name }}</td>
+        <td>{{ booking.email }}</td>
+        <td>{{ booking.room_name }}</td>
+        <td>{{ booking.room_type }}</td>
+        <td>{{ booking.check_in }}</td>
+        <td>{{ booking.check_out }}</td>
+        <td>{{ booking.guests }}</td>
+        <td>R{{ '%.2f'|format(booking.total_price) }}</td>
+        <td>{{ booking.status }}</td>
+        <td>
+          {% if booking.status != 'confirmed' %}
+          <form method="POST" action="{{ url_for('system.admin_confirm_booking', booking_id=booking.booking_id) }}" style="display:inline-block"><button type="submit" class="btn btn-sm">Confirm</button></form>
+          {% endif %}
+          {% if booking.status != 'cancelled' %}
+          <form method="POST" action="{{ url_for('system.admin_cancel_booking', booking_id=booking.booking_id) }}" style="display:inline-block" onsubmit="return confirm('Are you sure you want to cancel this booking?');"><button type="submit" class="btn btn-danger btn-sm">Cancel</button></form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('system.admin_delete_booking', booking_id=booking.booking_id) }}" style="display:inline-block" onsubmit="return confirm('Are you sure you want to permanently delete this booking history? This action cannot be undone.');"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="dashboard-section">
+  <h2>Rooms</h2>
+  <p><a href="{{ url_for('system.add_room') }}" class="btn">Add Room</a></p>
+  <table class="dashboard-table">
+    <thead>
+      <tr><th>ID</th><th>Room Name</th><th>Type</th><th>Capacity</th><th>Price</th><th>Active</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for room in rooms %}
+      <tr>
+        <td>{{ room.room_id }}</td>
+        <td>{{ room.room_name }}</td>
+        <td>{{ room.room_type }}</td>
+        <td>{{ room.capacity }}</td>
+        <td>R{{ '%.2f'|format(room.price_per_night) }}</td>
+        <td>{{ 'Yes' if room.is_active else 'No' }}</td>
+        <td>
+          <a href="{{ url_for('system.edit_room', room_id=room.room_id) }}" class="btn btn-sm">Edit</a>
+          {% if room.is_active %}
+          <form method="POST" action="{{ url_for('system.deactivate_room', room_id=room.room_id) }}" style="display:inline-block"><button type="submit" class="btn btn-danger btn-sm">Deactivate</button></form>
+          {% else %}
+          <form method="POST" action="{{ url_for('system.activate_room', room_id=room.room_id) }}" style="display:inline-block"><button type="submit" class="btn btn-sm">Activate</button></form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('system.delete_room', room_id=room.room_id) }}" style="display:inline-block" onsubmit="return confirm('Are you sure you want to permanently delete this room? This action cannot be undone.');"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

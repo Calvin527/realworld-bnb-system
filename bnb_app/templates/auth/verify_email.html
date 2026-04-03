@@ -1,0 +1,21 @@
+{% extends 'base.html' %} {% block title %}Verify Email{% endblock %} {% block
+content %}
+<div class="auth-card">
+  <h1>Validate Your Email</h1>
+  <p>Enter the 6-digit verification code sent to your email address.</p>
+  <form method="post" class="form">
+    <label
+      >Email<input type="email" name="email" value="{{ email }}" required
+    /></label>
+    <label>Verification code<input type="text" name="code" required /></label>
+    <button class="btn" type="submit">Verify Email</button>
+  </form>
+</div>
+<form
+  method="POST"
+  action="{{ url_for('auth.resend_verification', email=email) }}"
+  style="margin-top: 15px"
+>
+  <button type="submit" class="btn">Resend Verification Code</button>
+</form>
+{% endblock %}

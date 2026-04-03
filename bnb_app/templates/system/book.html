@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Book Room{% endblock %}
+{% block content %}
+<div class="auth-card wide">
+  <h1>Book {{ room.room_name }}</h1>
+  <p>{{ room.description }}</p>
+  <form method="post" class="form">
+    <label>Check-in date<input type="date" name="check_in" required min="{{ today }}"></label>
+    <label>Check-out date<input type="date" name="check_out" required min="{{ today }}"></label>
+    <label>Guests<input type="number" name="guests" min="1" max="{{ room.capacity }}" value="1" required></label>
+    <label>Breakfast package
+      <select name="breakfast_id">
+        <option value="">No breakfast</option>
+        {% for breakfast in breakfasts %}
+          <option value="{{ breakfast.breakfast_id }}">{{ breakfast.name }} - R{{ '%.2f'|format(breakfast.price) }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Special requests<textarea name="special_requests" rows="4"></textarea></label>
+    <button class="btn" type="submit">Confirm Booking</button>
+  </form>
+</div>
+{% endblock %}

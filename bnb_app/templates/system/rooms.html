@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Rooms{% endblock %}
+{% block content %}
+<h1>Rooms</h1>
+<div class="grid cards">
+  {% for room in rooms %}
+  <article class="card">
+    <img src="{{ room.image_url }}" alt="{{ room.room_name }}">
+    <div class="card-body">
+      <h3>{{ room.room_name }}</h3>
+      <p>{{ room.room_type }} | Capacity {{ room.capacity }}</p>
+      <p>{{ room.description }}</p>
+      <p><strong>R{{ '%.2f'|format(room.price_per_night) }}</strong> per night</p>
+      <a class="btn" href="{{ url_for('system.book', room_id=room.room_id) }}">Book This Room</a>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+<h2>Breakfast Packages</h2>
+<div class="grid cards">
+{% for breakfast in breakfasts %}
+  <article class="card simple"><div class="card-body"><h3>{{ breakfast.name }}</h3><p>{{ breakfast.description }}</p><p>R{{ '%.2f'|format(breakfast.price) }}</p></div></article>
+{% endfor %}
+</div>
+{% endblock %}

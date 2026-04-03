@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}MAKGOBELO LODGE{% endblock %}</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="{{ url_for('system.homepage') }}">
+          MAKGOBELO LODGE
+        </a>
+
+        <nav class="navbar">
+          <div class="nav-links">
+            {% if session.get('user_id') %} {% if session.get('role') == 'admin'
+            %}
+            <a href="{{ url_for('system.homepage') }}">Home</a>
+            <a href="{{ url_for('system.admin_dashboard') }}">Admin Panel</a>
+            {% else %}
+            <a href="{{ url_for('system.rooms') }}">Rooms</a>
+            <a href="{{ url_for('system.dashboard') }}">Dashboard</a>
+            {% endif %}
+            <a href="{{ url_for('auth.logout') }}">Logout</a>
+            {% else %}
+            <a href="{{ url_for('system.homepage') }}">Home</a>
+            <a href="{{ url_for('auth.login') }}">Login</a>
+            <a href="{{ url_for('auth.register') }}">Register</a>
+            {% endif %}
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %}
+      <div class="flash-stack">
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %} {% endwith %} {% if session.get('user_id') %}
+      <div class="welcome-text">Welcome, {{ session.get('full_name') }}</div>
+      {% endif %} {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

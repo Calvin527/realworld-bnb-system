@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}Welcome | Makgobelo Lodge{% endblock %}
+{% block content %}
+
+<section class="hero-slider">
+  <div class="slides">
+    <div class="slide active" style='background-image: linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), url("{{ url_for('static', filename='images/slide1.jpg') }}");'>
+      <div class="hero-content">
+        <h1>Welcome to Makgobelo Lodge</h1>
+        <p>Book comfortable rooms, choose breakfast packages, and manage your reservation online.</p>
+        <div class="actions">
+          {% if not session.get('user_id') %}
+          <a class="btn" href="{{ url_for('auth.login') }}">Login</a>
+          <a class="btn btn-light" href="{{ url_for('auth.register') }}">Create Account</a>
+          {% else %}
+          <a class="btn" href="{{ url_for('system.rooms') }}">Browse Rooms</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="slide" style="background-image: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.45)), url('{{ url_for('static', filename='images/slide1.jpg') }}');">
+      <div class="hero-content">
+        <h1>Luxury and Comfort</h1>
+        <p>Enjoy beautiful rooms and a peaceful lodge experience.</p>
+      </div>
+    </div>
+
+    <div class="slide" style="background-image: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.45)), url('{{ url_for('static', filename='images/slide2.jpg') }}');">
+      <div class="hero-content">
+        <h1>Enjoy The Sweetness of Nature</h1>
+      </div>
+    </div>
+
+    <div class="slide" style='background-image: linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), url("{{ url_for('static', filename='images/slide3.jpg') }}");'>
+      <div class="hero-content">
+        <h1>Fresh Breakfast</h1>
+        <p>Start your morning with delicious breakfast options.</p>
+      </div>
+    </div>
+  </div>
+
+  <button class="slider-btn prev" type="button" onclick="moveSlide(-1)">&#10094;</button>
+  <button class="slider-btn next" type="button" onclick="moveSlide(1)">&#10095;</button>
+</section>
+
+<script>
+  let currentSlide = 0;
+  const slides = document.querySelectorAll('.slide');
+  function showSlide(index) {
+    slides.forEach((slide) => slide.classList.remove('active'));
+    currentSlide = (index + slides.length) % slides.length;
+    slides[currentSlide].classList.add('active');
+  }
+  function moveSlide(step) { showSlide(currentSlide + step); }
+  setInterval(() => moveSlide(1), 5000);
+</script>
+
+<section>
+  <h2>Featured Rooms</h2>
+  <div class="grid cards">
+    {% for room in rooms %}
+    <article class="card">
+      <img src="{{ room.image_url }}" alt="{{ room.room_name }}" />
+      <div class="card-body">
+        <h3>{{ room.room_name }}</h3>
+        <p>{{ room.description }}</p>
+        <p><strong>R{{ '%.2f'|format(room.price_per_night) }}</strong> per night</p>
+        {% if session.get('user_id') and session.get('role') != 'admin' %}
+        <a class="btn" href="{{ url_for('system.book', room_id=room.room_id) }}">Book Now</a>
+        {% elif not session.get('user_id') %}
+        <a class="btn" href="{{ url_for('auth.login') }}">Login to Book</a>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2>Breakfast Options</h2>
+  <div class="grid cards">
+    {% for breakfast in breakfasts %}
+    <article class="card simple">
+      <div class="card-body">
+        <h3>{{ breakfast.name }}</h3>
+        <p>{{ breakfast.description }}</p>
+        <p><strong>R{{ '%.2f'|format(breakfast.price) }}</strong> per guest</p>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="info-section">
+  <div class="info-container">
+    <div class="info-box">
+      <h3>About Makgobelo Lodge</h3>
+      <p>Makgobelo Lodge offers a peaceful and comfortable stay with modern rooms, quality service, and a relaxing environment. Whether for business or leisure, we ensure a memorable experience.</p>
+    </div>
+
+    <div class="info-box">
+      <h3>Contact Us</h3>
+      <p>Email: makgobelolodge@gmail.com</p>
+      <p>Phone: +27 63 607 1420</p>
+      <p>Location: Machacha, Limpopo, South Africa</p>
+    </div>
+
+    <div class="info-box">
+      <h3>Why Choose Us?</h3>
+      <ul>
+        <li>✔ Comfortable and modern rooms</li>
+        <li>✔ Affordable pricing</li>
+        <li>✔ Fresh breakfast options</li>
+        <li>✔ Secure and easy booking system</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <p><b>© 2026 Makgobelo Lodge. All rights reserved.</b></p>
+</footer>
+{% endblock %}

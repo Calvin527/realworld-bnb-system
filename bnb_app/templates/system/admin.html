@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<h1>Admin Dashboard</h1>
+<div class="stats">
+  <div class="stat"><span>Total Users</span><strong>{{ stats.total_users }}</strong></div>
+  <div class="stat"><span>Active Rooms</span><strong>{{ stats.total_rooms }}</strong></div>
+  <div class="stat"><span>Total Bookings</span><strong>{{ stats.total_bookings }}</strong></div>
+  <div class="stat"><span>Confirmed Revenue</span><strong>R{{ '%.2f'|format(stats.confirmed_revenue) }}</strong></div>
+</div>
+<table class="table">
+  <thead><tr><th>ID</th><th>Guest</th><th>Room</th><th>Dates</th><th>Status</th><th>Total</th></tr></thead>
+  <tbody>
+    {% for row in recent %}
+      <tr><td>{{ row.booking_id }}</td><td>{{ row.full_name }}</td><td>{{ row.room_name }}</td><td>{{ row.check_in }} to {{ row.check_out }}</td><td>{{ row.status }}</td><td>R{{ '%.2f'|format(row.total_price) }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
