@@ -1,0 +1,27 @@
+{% extends 'base.html' %} {% block title %}Add Breakfast | Makgobelo Lodge{%
+endblock %} {% block content %}
+<h1>Add Breakfast</h1>
+
+<div class="auth-card">
+  <p><strong>Room:</strong> {{ booking.room_name }}</p>
+  <p><strong>Check-in:</strong> {{ booking.check_in }}</p>
+  <p><strong>Check-out:</strong> {{ booking.check_out }}</p>
+
+  <form method="POST" class="form">
+    <label>
+      Select Breakfast
+      <select name="breakfast_id" required>
+        <option value="">-- Choose breakfast --</option>
+        {% for breakfast in breakfasts %}
+        <option value="{{ breakfast.breakfast_id }}">
+          {{ breakfast.name }} - R{{ '%.2f'|format(breakfast.price) }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <button type="submit" class="btn">Add Breakfast</button>
+    <a href="{{ url_for('system.dashboard') }}" class="btn">Cancel</a>
+  </form>
+</div>
+{% endblock %}

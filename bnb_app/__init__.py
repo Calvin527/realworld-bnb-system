@@ -10,6 +10,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
+    app.config['ADMIN_EMAIL'] = os.getenv('ADMIN_EMAIL', '')
 
     app.config['DB_NAME'] = os.getenv('DB_NAME', 'bnb_system')
     app.config['DB_USER'] = os.getenv('DB_USER', 'postgres')

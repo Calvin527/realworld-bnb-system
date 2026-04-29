@@ -645,3 +645,13 @@ a {
   margin-right: 6px;
   margin-bottom: 4px;
 }
+.field-error {
+  display: block;
+  color: #c0392b;
+  font-size: 0.85rem;
+  margin-top: 5px;
+}
+
+.form input {
+  margin-bottom: 4px;
+}

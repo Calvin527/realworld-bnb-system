@@ -4,6 +4,7 @@ from email.message import EmailMessage
 from flask import current_app
 
 
+
 def _get_mail_config():
     return {
         "enabled": current_app.config.get("MAIL_ENABLED", False),
@@ -164,4 +165,87 @@ Makgobelo Lodge
     <p>If you did not make this request, please contact Makgobelo Lodge immediately.</p>
     <p>Regards,<br>Makgobelo Lodge</p>
     """
+    return send_email(to_email, subject, body, html)
+
+def send_admin_notification_email(subject, body):
+    admin_email = current_app.config.get("ADMIN_EMAIL")
+
+    if not admin_email:
+        return False, "ADMIN_EMAIL is not configured."
+
+    return send_email(admin_email, subject, body)
+
+def send_admin_booking_cancellation_email(to_email, full_name, room_name, check_in, check_out, refund_message):
+    subject = "Booking Cancelled by Administration - Makgobelo Lodge"
+
+    body = f"""Hello {full_name},
+
+Your booking at Makgobelo Lodge has been cancelled by administration.
+
+Booking details:
+Room: {room_name}
+Check-in: {check_in}
+Check-out: {check_out}
+
+Refund status:
+{refund_message}
+
+If you have any questions, please contact Makgobelo Lodge.
+
+Regards,
+Makgobelo Lodge
+"""
+
+    html = f"""
+    <h2>Booking Cancelled by Administration</h2>
+    <p>Hello {full_name},</p>
+    <p>Your booking at <strong>Makgobelo Lodge</strong> has been cancelled by administration.</p>
+    <ul>
+      <li><strong>Room:</strong> {room_name}</li>
+      <li><strong>Check-in:</strong> {check_in}</li>
+      <li><strong>Check-out:</strong> {check_out}</li>
+    </ul>
+    <p><strong>Refund status:</strong><br>{refund_message}</p>
+    <p>If you have any questions, please contact Makgobelo Lodge.</p>
+    <p>Regards,<br>Makgobelo Lodge</p>
+    """
+
+    return send_email(to_email, subject, body, html)
+
+def send_breakfast_purchase_email(to_email, full_name, booking):
+    subject = "Breakfast Added to Your Booking - Makgobelo Lodge"
+
+    body = f"""Hello {full_name},
+
+Breakfast has been added to your booking.
+
+Booking details:
+Room: {booking['room_name']}
+Check-in: {booking['check_in']}
+Check-out: {booking['check_out']}
+Breakfast: {booking['breakfast_name']}
+Breakfast Cost: R{float(booking['breakfast_cost']):.2f}
+Updated Total Price: R{float(booking['total_price']):.2f}
+
+Thank you for choosing Makgobelo Lodge.
+
+Regards,
+Makgobelo Lodge
+"""
+
+    html = f"""
+    <h2>Breakfast Added</h2>
+    <p>Hello {full_name},</p>
+    <p>Breakfast has been added to your booking.</p>
+    <ul>
+      <li><strong>Room:</strong> {booking['room_name']}</li>
+      <li><strong>Check-in:</strong> {booking['check_in']}</li>
+      <li><strong>Check-out:</strong> {booking['check_out']}</li>
+      <li><strong>Breakfast:</strong> {booking['breakfast_name']}</li>
+      <li><strong>Breakfast Cost:</strong> R{float(booking['breakfast_cost']):.2f}</li>
+      <li><strong>Updated Total Price:</strong> R{float(booking['total_price']):.2f}</li>
+    </ul>
+    <p>Thank you for choosing <strong>Makgobelo Lodge</strong>.</p>
+    """
+
     return send_email(to_email, subject, body, html)

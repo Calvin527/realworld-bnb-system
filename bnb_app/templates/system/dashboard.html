@@ -1,6 +1,5 @@
 {% extends 'base.html' %} {% block title %}Dashboard | Makgobelo Lodge{%
 endblock %} {% block content %}
-
 <h1>Dashboard</h1>
 
 <section class="stats-grid">
@@ -52,6 +51,7 @@ endblock %} {% block content %}
 
 <section class="dashboard-section">
   <h2>Room Status / Current Status</h2>
+
   <table class="dashboard-table">
     <thead>
       <tr>
@@ -62,6 +62,7 @@ endblock %} {% block content %}
         <th>Status</th>
       </tr>
     </thead>
+
     <tbody>
       {% for room in room_statuses %}
       <tr>
@@ -86,6 +87,7 @@ endblock %} {% block content %}
 
 <section class="dashboard-section">
   <h2>My Bookings</h2>
+
   <table class="dashboard-table">
     <thead>
       <tr>
@@ -100,6 +102,7 @@ endblock %} {% block content %}
         <th>Action</th>
       </tr>
     </thead>
+
     <tbody>
       {% for booking in user_bookings %}
       <tr>
@@ -111,26 +114,36 @@ endblock %} {% block content %}
         <td>{{ booking.guests }}</td>
         <td>R{{ '%.2f'|format(booking.total_price) }}</td>
         <td>{{ booking.status }}</td>
+
         <td>
-          {% if booking.can_cancel %}
-          <form
-            method="POST"
-            action="{{ url_for('system.cancel_booking', booking_id=booking.booking_id) }}"
-            onsubmit="
-              return confirm(
-                'No refund after Cancelling. Do you want to continue?',
-              );
-            "
-          >
-            <button type="submit" class="btn btn-danger btn-sm">
-              Cancel Booking
-            </button>
-          </form>
-          {% elif booking.status == 'cancelled' %}
-          <span class="badge inactive">Cancelled</span>
-          {% else %}
-          <span class="muted-text">Cannot cancel</span>
-          {% endif %}
+          <div class="action-buttons">
+            {% if not booking.breakfast_id and booking.status != 'cancelled' %}
+            <a
+              href="{{ url_for('system.add_breakfast_to_booking', booking_id=booking.booking_id) }}"
+              class="btn btn-sm"
+            >
+              Add Breakfast
+            </a>
+            {% endif %} {% if booking.can_cancel %}
+            <form
+              method="POST"
+              action="{{ url_for('system.cancel_booking', booking_id=booking.booking_id) }}"
+              onsubmit="
+                return confirm(
+                  'No refund after Cancelling. Do you want to continue?',
+                );
+              "
+            >
+              <button type="submit" class="btn btn-danger btn-sm">
+                Cancel Booking
+              </button>
+            </form>
+            {% elif booking.status == 'cancelled' %}
+            <span class="badge inactive">Cancelled</span>
+            {% else %}
+            <span class="muted-text">Cannot cancel</span>
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% else %}
@@ -144,6 +157,7 @@ endblock %} {% block content %}
 
 <section class="dashboard-section">
   <h2>Recent Reservations</h2>
+
   <table class="dashboard-table">
     <thead>
       <tr>
@@ -158,6 +172,7 @@ endblock %} {% block content %}
         <th>Status</th>
       </tr>
     </thead>
+
     <tbody>
       {% for reservation in recent_reservations %}
       <tr>
@@ -178,6 +193,7 @@ endblock %} {% block content %}
 
 <section class="dashboard-section">
   <h2>Reservation Types</h2>
+
   <div class="stats-grid">
     {% for item in reservation_types %}
     <div class="stat-card">
