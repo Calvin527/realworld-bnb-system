@@ -1,6 +1,7 @@
 import os
 from flask import Flask
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 
 load_dotenv()
@@ -12,11 +13,21 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
     app.config['ADMIN_EMAIL'] = os.getenv('ADMIN_EMAIL', '')
 
-    app.config['DB_NAME'] = os.getenv('DB_NAME', 'bnb_system')
-    app.config['DB_USER'] = os.getenv('DB_USER', 'postgres')
-    app.config['DB_PASSWORD'] = os.getenv('DB_PASSWORD', '')
-    app.config['DB_HOST'] = os.getenv('DB_HOST', 'localhost')
-    app.config['DB_PORT'] = os.getenv('DB_PORT', '5432')
+    # Database configuration
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        url = urlparse(database_url)
+        app.config['DB_NAME'] = url.path.lstrip('/')
+        app.config['DB_USER'] = url.username
+        app.config['DB_PASSWORD'] = url.password
+        app.config['DB_HOST'] = url.hostname
+        app.config['DB_PORT'] = url.port
+    else:
+        app.config['DB_NAME'] = os.getenv('DB_NAME', 'bnb_system')
+        app.config['DB_USER'] = os.getenv('DB_USER', 'postgres')
+        app.config['DB_PASSWORD'] = os.getenv('DB_PASSWORD', '')
+        app.config['DB_HOST'] = os.getenv('DB_HOST', 'localhost')
+        app.config['DB_PORT'] = os.getenv('DB_PORT', '5432')
 
     app.config['MAIL_ENABLED'] = os.getenv('MAIL_ENABLED', 'False').strip().lower() == 'true'
     app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
