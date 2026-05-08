@@ -1,27 +1,85 @@
 {% extends 'base.html' %} {% block title %}Add Breakfast | Makgobelo Lodge{%
 endblock %} {% block content %}
-<h1>Add Breakfast</h1>
+<h1>Add / Change Breakfast</h1>
 
 <div class="auth-card">
   <p><strong>Room:</strong> {{ booking.room_name }}</p>
   <p><strong>Check-in:</strong> {{ booking.check_in }}</p>
   <p><strong>Check-out:</strong> {{ booking.check_out }}</p>
+  <p><strong>Guests:</strong> {{ booking.guests }}</p>
 
-  <form method="POST" class="form">
-    <label>
-      Select Breakfast
-      <select name="breakfast_id" required>
-        <option value="">-- Choose breakfast --</option>
-        {% for breakfast in breakfasts %}
-        <option value="{{ breakfast.breakfast_id }}">
-          {{ breakfast.name }} - R{{ '%.2f'|format(breakfast.price) }}
-        </option>
-        {% endfor %}
-      </select>
-    </label>
+  <form method="POST" class="form" id="breakfastForm">
+    <div id="breakfastRows">
+      <div class="breakfast-row">
+        <label>
+          Breakfast Date
+          <input
+            type="date"
+            name="breakfast_date"
+            min="{{ booking.check_in }}"
+            max="{{ booking.check_out }}"
+            required
+          />
+        </label>
 
-    <button type="submit" class="btn">Add Breakfast</button>
+        <label>
+          Select Breakfast
+          <select name="breakfast_id" required>
+            <option value="">-- Choose breakfast --</option>
+            {% for breakfast in breakfasts %}
+            <option value="{{ breakfast.breakfast_id }}">
+              {{ breakfast.name }} - R{{ '%.2f'|format(breakfast.price) }}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <button type="button" class="btn" onclick="addBreakfastRow()">
+      Add Another Day
+    </button>
+
+    <button type="submit" class="btn">Save Breakfast</button>
     <a href="{{ url_for('system.dashboard') }}" class="btn">Cancel</a>
   </form>
+
+  {% if existing_breakfasts %}
+  <h3>Current Breakfast Selections</h3>
+  <table class="dashboard-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Breakfast</th>
+        <th>Quantity</th>
+        <th>Cost</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in existing_breakfasts %}
+      <tr>
+        <td>{{ item.breakfast_date }}</td>
+        <td>{{ item.breakfast_name }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>R{{ '%.2f'|format(item.price) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 </div>
+
+<script>
+  function addBreakfastRow() {
+    const container = document.getElementById("breakfastRows");
+    const firstRow = container.querySelector(".breakfast-row");
+    const newRow = firstRow.cloneNode(true);
+
+    newRow.querySelectorAll("input, select").forEach((field) => {
+      field.value = "";
+    });
+
+    container.appendChild(newRow);
+  }
+</script>
 {% endblock %}

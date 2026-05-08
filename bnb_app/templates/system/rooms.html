@@ -1,26 +1,79 @@
-{% extends 'base.html' %}
-{% block title %}Rooms{% endblock %}
+{% extends 'base.html' %} {% block title %}Rooms | Makgobelo Lodge{% endblock %}
 {% block content %}
+
 <h1>Rooms</h1>
+
 <div class="grid cards">
   {% for room in rooms %}
   <article class="card">
-    <img src="{{ room.image_url }}" alt="{{ room.room_name }}">
+    <!-- ROOM IMAGE -->
+    {% if room.image_filename %}
+    <img
+      src="{{ url_for('static', filename='uploads/rooms/' ~ room.image_filename) }}"
+      alt="{{ room.room_name }}"
+      class="room-img"
+    />
+
+    {% elif room.image_url %}
+    <img
+      src="{{ room.image_url }}"
+      alt="{{ room.room_name }}"
+      class="room-img"
+    />
+
+    {% else %}
+    <div class="room-img placeholder-img">No image available</div>
+    {% endif %}
+
+    <!-- ROOM DETAILS -->
     <div class="card-body">
       <h3>{{ room.room_name }}</h3>
+
       <p>{{ room.room_type }} | Capacity {{ room.capacity }}</p>
+
+      {% if room.description %}
       <p>{{ room.description }}</p>
-      <p><strong>R{{ '%.2f'|format(room.price_per_night) }}</strong> per night</p>
-      <a class="btn" href="{{ url_for('system.book', room_id=room.room_id) }}">Book This Room</a>
+      {% endif %}
+
+      <p>
+        <strong> R{{ '%.2f'|format(room.price_per_night) }} </strong>
+        per night
+      </p>
+
+      <a class="btn" href="{{ url_for('system.book', room_id=room.room_id) }}">
+        Book This Room
+      </a>
     </div>
   </article>
+
+  {% else %}
+  <p>No rooms available at the moment.</p>
   {% endfor %}
 </div>
 
+<hr class="section-divider" />
+
 <h2>Breakfast Packages</h2>
+
 <div class="grid cards">
-{% for breakfast in breakfasts %}
-  <article class="card simple"><div class="card-body"><h3>{{ breakfast.name }}</h3><p>{{ breakfast.description }}</p><p>R{{ '%.2f'|format(breakfast.price) }}</p></div></article>
-{% endfor %}
+  {% for breakfast in breakfasts %}
+  <article class="card simple">
+    <div class="card-body">
+      <h3>{{ breakfast.name }}</h3>
+
+      {% if breakfast.description %}
+      <p>{{ breakfast.description }}</p>
+      {% endif %}
+
+      <p>
+        <strong> R{{ '%.2f'|format(breakfast.price) }} </strong>
+      </p>
+    </div>
+  </article>
+
+  {% else %}
+  <p>No breakfast packages available.</p>
+  {% endfor %}
 </div>
+
 {% endblock %}

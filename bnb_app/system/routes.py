@@ -1,6 +1,9 @@
 
 from datetime import datetime
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+import os
+from werkzeug.utils import secure_filename
+from flask import current_app
 
 from ..db import execute_db, query_db
 from ..services.email_service import (
@@ -124,35 +127,9 @@ def dashboard():
         """
     )
 
-    recent_reservations = query_db(
-        """
-        SELECT
-            b.booking_id,
-            u.full_name,
-            r.room_name,
-            r.room_type,
-            b.check_in,
-            b.check_out,
-            b.guests,
-            b.total_price,
-            b.status
-        FROM bookings b
-        JOIN users u ON b.user_id = u.user_id
-        JOIN rooms r ON b.room_id = r.room_id
-        ORDER BY b.created_at DESC
-        LIMIT 5
-        """
-    )
+    
 
-    reservation_types = query_db(
-        """
-        SELECT r.room_type, COUNT(*) AS total
-        FROM bookings b
-        JOIN rooms r ON b.room_id = r.room_id
-        GROUP BY r.room_type
-        ORDER BY total DESC
-        """
-    )
+    
 
     user_bookings = query_db(
         """
@@ -192,8 +169,8 @@ def dashboard():
         confirmed_reservations=confirmed_reservations,
         cancelled_reservations=cancelled_reservations,
         room_statuses=room_statuses,
-        recent_reservations=recent_reservations,
-        reservation_types=reservation_types,
+        
+        
         user_bookings=user_bookings,
     )
 
@@ -277,6 +254,9 @@ def book(room_id):
 
         nights = (check_out_date - check_in_date).days
         breakfast_price = 0.0
+        if nights <= 0:
+            flash("Check-out must be after check-in.", "danger")
+            return render_template("system/book.html", room=room, breakfasts=breakfasts)
 
         if breakfast_id:
             breakfast = query_db(
@@ -544,6 +524,20 @@ def admin_dashboard():
         """
     )
 
+    popular_breakfasts = query_db(
+    """
+    SELECT
+        bo.name AS breakfast_name,
+        COUNT(bb.booking_breakfast_id) AS times_ordered,
+        SUM(bb.quantity) AS total_servings,
+        SUM(bb.price) AS total_revenue
+    FROM booking_breakfasts bb
+    JOIN breakfast_options bo ON bb.breakfast_id = bo.breakfast_id
+    GROUP BY bo.name
+    ORDER BY total_servings DESC, times_ordered DESC
+    """
+)
+
     return render_template(
         "system/admin_dashboard.html",
         total_users=total_users,
@@ -551,6 +545,7 @@ def admin_dashboard():
         occupied_rooms=occupied_rooms,
         available_rooms=available_rooms,
         total_bookings=total_bookings,
+        popular_breakfasts=popular_breakfasts,
         pending_bookings=pending_bookings,
         confirmed_bookings=confirmed_bookings,
         cancelled_bookings=cancelled_bookings,
@@ -779,33 +774,79 @@ def delete_user(user_id):
     return redirect(url_for("system.admin_dashboard"))
 
 
-@system_bp.route("/admin/rooms/add", methods=["GET", "POST"])
+@system_bp.route('/admin/rooms/add', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def add_room():
-    if request.method == "POST":
-        room_name = request.form.get("room_name", "").strip()
-        room_type = request.form.get("room_type", "").strip()
-        capacity = request.form.get("capacity", "").strip()
-        price_per_night = request.form.get("price_per_night", "").strip()
+
+    if request.method == 'POST':
+
+        room_name = request.form.get('room_name', '').strip()
+        room_type = request.form.get('room_type', '').strip()
+        capacity = request.form.get('capacity', '').strip()
+        price_per_night = request.form.get('price_per_night', '').strip()
+
+        image = request.files.get('room_image')
 
         if not room_name or not room_type or not capacity or not price_per_night:
-            flash("All room fields are required.", "danger")
-            return render_template("system/add_room.html")
+            flash('All room fields are required.', 'danger')
+            return render_template('system/add_room.html')
+
+        if not image or image.filename == '':
+            flash('Room image is required.', 'danger')
+            return render_template('system/add_room.html')
+
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'webp'}
+
+        filename = secure_filename(image.filename)
+
+        if '.' not in filename:
+            flash('Invalid image file.', 'danger')
+            return render_template('system/add_room.html')
+
+        extension = filename.rsplit('.', 1)[1].lower()
+
+        if extension not in allowed_extensions:
+            flash('Only PNG, JPG, JPEG, and WEBP images are allowed.', 'danger')
+            return render_template('system/add_room.html')
+
+        unique_filename = f"{datetime.now().timestamp()}_{filename}"
+
+        save_path = os.path.join(
+            current_app.config['UPLOAD_FOLDER'],
+            unique_filename
+        )
+
+        image.save(save_path)
 
         execute_db(
             """
-            INSERT INTO rooms (room_name, room_type, capacity, price_per_night, is_active)
-            VALUES (%s, %s, %s, %s, TRUE)
+            INSERT INTO rooms
+            (
+                room_name,
+                room_type,
+                capacity,
+                price_per_night,
+                image_filename,
+                is_active
+            )
+            VALUES
+            (%s, %s, %s, %s, %s, TRUE)
             """,
-            [room_name, room_type, capacity, price_per_night],
+            [
+                room_name,
+                room_type,
+                capacity,
+                price_per_night,
+                unique_filename
+            ],
         )
 
-        flash("Room added successfully.", "success")
-        return redirect(url_for("system.admin_dashboard"))
+        flash('Room added successfully.', 'success')
 
-    return render_template("system/add_room.html")
+        return redirect(url_for('system.admin_dashboard'))
 
+    return render_template('system/add_room.html')
 
 @system_bp.route("/admin/rooms/edit/<int:room_id>", methods=["GET", "POST"])
 @login_required
@@ -935,11 +976,13 @@ def add_breakfast_to_booking(booking_id):
         SELECT
             b.booking_id,
             b.user_id,
-            b.breakfast_id,
             b.check_in,
             b.check_out,
+            b.guests,
             b.total_price,
+            b.status,
             r.room_name,
+            r.price_per_night,
             u.email,
             u.full_name
         FROM bookings b
@@ -956,8 +999,8 @@ def add_breakfast_to_booking(booking_id):
         flash("Booking not found.", "danger")
         return redirect(url_for("system.dashboard"))
 
-    if booking["breakfast_id"]:
-        flash("Breakfast is already added to this booking.", "warning")
+    if booking["status"] == "cancelled":
+        flash("You cannot add breakfast to a cancelled booking.", "warning")
         return redirect(url_for("system.dashboard"))
 
     if booking["check_out"] <= datetime.today().date():
@@ -965,115 +1008,151 @@ def add_breakfast_to_booking(booking_id):
         return redirect(url_for("system.dashboard"))
 
     breakfasts = query_db(
-        "SELECT * FROM breakfast_options WHERE is_active = TRUE ORDER BY price"
+        """
+        SELECT breakfast_id, name, price
+        FROM breakfast_options
+        WHERE is_active = TRUE
+        ORDER BY price
+        """
+    )
+
+    existing_breakfasts = query_db(
+        """
+        SELECT
+            bb.booking_breakfast_id,
+            bb.breakfast_date,
+            bb.quantity,
+            bb.price,
+            bo.name AS breakfast_name
+        FROM booking_breakfasts bb
+        JOIN breakfast_options bo ON bb.breakfast_id = bo.breakfast_id
+        WHERE bb.booking_id = %s
+        ORDER BY bb.breakfast_date
+        """,
+        [booking_id],
     )
 
     if request.method == "POST":
-        breakfast_id = request.form.get("breakfast_id")
+        selected_dates = request.form.getlist("breakfast_date")
+        selected_breakfasts = request.form.getlist("breakfast_id")
 
-        if not breakfast_id:
-            flash("Please select a breakfast option.", "danger")
+        if not selected_dates or not selected_breakfasts:
+            flash("Please select at least one breakfast day.", "danger")
             return render_template(
                 "system/add_breakfast.html",
                 booking=booking,
                 breakfasts=breakfasts,
+                existing_breakfasts=existing_breakfasts,
             )
 
-        breakfast = query_db(
-            """
-            SELECT breakfast_id, name, price
-            FROM breakfast_options
-            WHERE breakfast_id = %s
-              AND is_active = TRUE
-            """,
-            [breakfast_id],
-            one=True,
-        )
-
-        if not breakfast:
-            flash("Invalid breakfast option selected.", "danger")
+        if len(selected_dates) != len(selected_breakfasts):
+            flash("Invalid breakfast selection.", "danger")
             return render_template(
                 "system/add_breakfast.html",
                 booking=booking,
                 breakfasts=breakfasts,
+                existing_breakfasts=existing_breakfasts,
+            )
+
+        check_in = booking["check_in"]
+        check_out = booking["check_out"]
+
+        execute_db(
+            "DELETE FROM booking_breakfasts WHERE booking_id = %s",
+            [booking_id],
+        )
+
+        breakfast_total = 0.0
+
+        for date_value, breakfast_id in zip(selected_dates, selected_breakfasts):
+            if not date_value or not breakfast_id:
+                continue
+
+            breakfast_date = datetime.strptime(date_value, "%Y-%m-%d").date()
+
+            if breakfast_date < check_in or breakfast_date >= check_out:
+                flash("Breakfast date must be between check-in and before check-out.", "danger")
+                return redirect(url_for("system.add_breakfast_to_booking", booking_id=booking_id))
+
+            breakfast = query_db(
+                """
+                SELECT breakfast_id, name, price
+                FROM breakfast_options
+                WHERE breakfast_id = %s
+                  AND is_active = TRUE
+                """,
+                [breakfast_id],
+                one=True,
+            )
+
+            if not breakfast:
+                flash("Invalid breakfast selected.", "danger")
+                return redirect(url_for("system.add_breakfast_to_booking", booking_id=booking_id))
+
+            quantity = int(booking["guests"])
+            price = float(breakfast["price"]) * quantity
+            breakfast_total += price
+
+            execute_db(
+                """
+                INSERT INTO booking_breakfasts
+                    (booking_id, breakfast_id, breakfast_date, quantity, price)
+                VALUES
+                    (%s, %s, %s, %s, %s)
+                """,
+                [booking_id, breakfast_id, breakfast_date, quantity, price],
             )
 
         nights = (booking["check_out"] - booking["check_in"]).days
-        breakfast_cost = float(breakfast["price"]) * nights
-        new_total = float(booking["total_price"]) + breakfast_cost
+        room_total = float(booking["price_per_night"]) * nights
+        new_total = room_total + breakfast_total
 
         execute_db(
             """
             UPDATE bookings
-            SET breakfast_id = %s,
-                total_price = %s
+            SET total_price = %s
             WHERE booking_id = %s
               AND user_id = %s
             """,
-            [breakfast_id, new_total, booking_id, session["user_id"]],
+            [new_total, booking_id, session["user_id"]],
         )
 
-        updated_booking = query_db(
-            """
-            SELECT
-                b.booking_id,
-                b.check_in,
-                b.check_out,
-                b.total_price,
-                r.room_name,
-                u.email,
-                u.full_name,
-                bo.name AS breakfast_name,
-                bo.price AS breakfast_price,
-                (%s::numeric) AS breakfast_cost
-            FROM bookings b
-            JOIN rooms r ON b.room_id = r.room_id
-            JOIN users u ON b.user_id = u.user_id
-            JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
-            WHERE b.booking_id = %s
-            """,
-            [breakfast_cost, booking_id],
-            one=True,
-        )
-
-        sent, message = send_breakfast_purchase_email(
-            updated_booking["email"],
-            updated_booking["full_name"],
-            updated_booking,
+        send_breakfast_purchase_email(
+            booking["email"],
+            booking["full_name"],
+            {
+                "room_name": booking["room_name"],
+                "check_in": booking["check_in"],
+                "check_out": booking["check_out"],
+                "breakfast_name": "Multiple breakfast selections",
+                "breakfast_cost": breakfast_total,
+                "total_price": new_total,
+            },
         )
 
         notify_admin(
-            "Breakfast Purchased - Makgobelo Lodge",
+            "Breakfast Updated - Makgobelo Lodge",
             f"""
-A guest purchased breakfast after booking.
+A guest updated breakfast selections.
 
-Guest: {updated_booking['full_name']}
-Email: {updated_booking['email']}
-Room: {updated_booking['room_name']}
-Check-in: {updated_booking['check_in']}
-Check-out: {updated_booking['check_out']}
-Breakfast: {updated_booking['breakfast_name']}
-Breakfast Cost: R{float(breakfast_cost):.2f}
-Updated Total: R{float(updated_booking['total_price']):.2f}
+Guest: {booking['full_name']}
+Email: {booking['email']}
+Room: {booking['room_name']}
+Check-in: {booking['check_in']}
+Check-out: {booking['check_out']}
+Breakfast Total: R{breakfast_total:.2f}
+Updated Total: R{new_total:.2f}
 
 Makgobelo Lodge System
 """,
         )
 
-        if sent:
-            flash("Breakfast added successfully. Confirmation email sent.", "success")
-        else:
-            flash(
-                f"Breakfast added successfully, but email was not sent. Reason: {message}",
-                "warning",
-            )
-
+        flash("Breakfast selections saved successfully.", "success")
         return redirect(url_for("system.dashboard"))
 
     return render_template(
         "system/add_breakfast.html",
         booking=booking,
         breakfasts=breakfasts,
+        existing_breakfasts=existing_breakfasts,
     )
-
-

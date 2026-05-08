@@ -12,6 +12,8 @@ def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
     app.config['ADMIN_EMAIL'] = os.getenv('ADMIN_EMAIL', '')
+    app.config['UPLOAD_FOLDER'] = 'bnb_app/static/uploads/rooms'
+    app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 
     # Database configuration
     database_url = os.getenv('DATABASE_URL')
