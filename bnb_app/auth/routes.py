@@ -134,9 +134,10 @@ def login():
             session['role'] = user['role']
 
             flash('Login successful.', 'success')
-            send_admin_notification_email(
-    "User Login Alert - Makgobelo Lodge",
-    f"""
+            try:
+                send_admin_notification_email(
+        "User Login Alert - Makgobelo Lodge",
+        f"""
 A user has signed in.
 
 Name: {user['full_name']}
@@ -145,7 +146,9 @@ Role: {user['role']}
 
 Makgobelo Lodge System
 """
-)
+    )
+            except Exception as e:
+                print(f"Admin login notification failed: {e}")
 
             if user['role'] == 'admin':
                 return redirect(url_for('system.admin_dashboard'))
