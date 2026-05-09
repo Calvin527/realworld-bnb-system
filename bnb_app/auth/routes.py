@@ -82,15 +82,17 @@ def resend_verification(email):
         """,
         [code, email],
     )
+    flash('Account created successfully. You can now log in.', 'success')
+    return redirect(url_for('auth.login'))
 
-    sent, message = send_verification_email(user['email'], user['full_name'], code)
+    #sent, message = send_verification_email(user['email'], user['full_name'], code)
 
-    if not sent:
-        flash(f'Could not resend verification email. Reason: {message}', 'danger')
-        return redirect(url_for('auth.verify_email', email=email))
+    #if not sent:
+        #flash(f'Could not resend verification email. Reason: {message}', 'danger')
+        #return redirect(url_for('auth.verify_email', email=email))
 
-    flash('A new verification code has been sent to your email address.', 'success')
-    return redirect(url_for('auth.verify_email', email=email))
+    #flash('A new verification code has been sent to your email address.', 'success')
+    #return redirect(url_for('auth.verify_email', email=email))
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -123,9 +125,9 @@ def login():
         )
 
         if user and check_password_hash(user['password_hash'], password):
-            if not user['is_email_verified']:
-                flash('Please verify your email before logging in.', 'warning')
-                return redirect(url_for('auth.verify_email', email=user['email']))
+            #if not user['is_email_verified']:
+                #flash('Please verify your email before logging in.', 'warning')
+                #return redirect(url_for('auth.verify_email', email=user['email']))
 
             session.clear()
             session['user_id'] = user['user_id']
@@ -207,9 +209,9 @@ def register():
             INSERT INTO users
                 (full_name, email, phone, password_hash, role, is_email_verified, verification_code)
             VALUES
-                (%s, %s, %s, %s, 'guest', FALSE, %s)
+                (%s, %s, %s, %s, 'guest', TRUE, %s)
             """,
-            [full_name, email, phone or None, password_hash, code],
+            [full_name, email, phone or None, password_hash],
         )
 
         sent, message = send_verification_email(email, full_name, code)
