@@ -67,3 +67,31 @@ Makgobelo Lodge
     """
 
     return send_email(user_email, subject, body, html)
+
+def send_verification_email(user_email, full_name, code):
+    subject = "Verify your Makgobelo Lodge account"
+
+    body = f"""Hello {full_name},
+
+Welcome to Makgobelo Lodge.
+
+Your email verification code is: {code}
+
+Enter this code on the verification page to activate your account.
+
+If you did not create this account, please ignore this email.
+
+Makgobelo Lodge
+"""
+
+    html = f"""
+    <h2>Welcome to Makgobelo Lodge</h2>
+    <p>Hello {full_name},</p>
+    <p>Your email verification code is:</p>
+    <p style="font-size:24px;font-weight:bold;letter-spacing:2px;">{code}</p>
+    <p>Enter this code on the verification page to activate your account.</p>
+    <p>If you did not create this account, please ignore this email.</p>
+    <p><strong>Makgobelo Lodge</strong></p>
+    """
+
+    return send_email(user_email, subject, body, html)
