@@ -95,3 +95,13 @@ Makgobelo Lodge
     """
 
     return send_email(user_email, subject, body, html)
+
+def send_admin_notification_email(subject, body):
+    import os
+
+    admin_email = os.getenv("ADMIN_EMAIL")
+
+    if not admin_email:
+        return False, "ADMIN_EMAIL is not configured."
+
+    return send_email(admin_email, subject, body)
