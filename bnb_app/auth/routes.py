@@ -214,34 +214,34 @@ def register():
             [full_name, email, phone or None, password_hash],
         )
 
-        sent, message = send_verification_email(email, full_name, code)
+        #sent, message = send_verification_email(email, full_name, code)
 
-        if not sent:
-            execute_db('DELETE FROM users WHERE email = %s', [email])
-            flash(
-                f'Account could not be created because the verification email was not sent. Reason: {message}',
-                'danger',
-            )
-            return render_template('auth/register.html')
+        #if not sent:
+        #    execute_db('DELETE FROM users WHERE email = %s', [email])
+        #   flash(
+        #       f'Account could not be created because the verification email was not sent. Reason: {message}',
+        #       'danger',
+        #   )
+        #   return render_template('auth/register.html')
 
-        flash('Account created successfully. A verification code has been sent to your email address.', 'success')
-        send_admin_notification_email(
-    "New User Registered - Makgobelo Lodge",
-    f"""
-A new user has registered.
+        flash('Account created successfully', 'success')
+        #send_admin_notification_email(
+    #"New User Registered - Makgobelo Lodge",
+    #f"""
+#A new user has registered.
 
-Name: {full_name}
-Email: {email}
-Phone: {phone or 'Not provided'}
-Role: guest
+#Name: {full_name}
+#Email: {email}
+#Phone: {phone or 'Not provided'}
+#Role: guest
 
-Makgobelo Lodge System
-"""
-)
+#Makgobelo Lodge System
+#"""
+#)
         
-        return redirect(url_for('auth.verify_email', email=email))
-
-    return render_template('auth/register.html')
+    #    return redirect(url_for('auth.verify_email', email=email))
+    
+    #return render_template('auth/register.html')
 
 
 @auth_bp.route('/verify-email', methods=['GET', 'POST'])
