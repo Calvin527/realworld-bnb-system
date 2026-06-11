@@ -225,6 +225,7 @@ def register():
         #   return render_template('auth/register.html')
 
         flash('Account created successfully', 'success')
+        return redirect(url_for('auth.login'))
         #send_admin_notification_email(
     #"New User Registered - Makgobelo Lodge",
     #f"""
@@ -241,7 +242,7 @@ def register():
         
     #    return redirect(url_for('auth.verify_email', email=email))
     
-    #return render_template('auth/register.html')
+    return render_template('auth/register.html')
 
 
 @auth_bp.route('/verify-email', methods=['GET', 'POST'])
