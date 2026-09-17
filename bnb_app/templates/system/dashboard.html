@@ -1,54 +1,11 @@
 {% extends 'base.html' %} {% block title %}Dashboard | Makgobelo Lodge{%
 endblock %} {% block content %}
 
-<h1>Dashboard</h1>
+<h1>My Dashboard</h1>
 
-<section class="stats-grid">
-  <div class="stat-card">
-    <h3>Total Rooms</h3>
-    <p>{{ total_rooms }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h3>Occupied Rooms</h3>
-    <p>{{ occupied_rooms }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h3>Rooms Available</h3>
-    <p>{{ available_rooms }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h3>Total Guests</h3>
-    <p>{{ total_guests }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h3>Reservations</h3>
-    <p>{{ total_reservations }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h3>Occupancy</h3>
-    <p>{{ occupancy_rate }}%</p>
-  </div>
-
-  <div class="stat-card">
-    <h3>Pending</h3>
-    <p>{{ pending_reservations }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h3>Confirmed</h3>
-    <p>{{ confirmed_reservations }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h3>Cancelled</h3>
-    <p>{{ cancelled_reservations }}</p>
-  </div>
-</section>
+<p>
+  <a class="btn" href="{{ url_for('system.rooms') }}">Browse Rooms</a>
+</p>
 
 {% if current_booking %}
 <section class="dashboard-section">
@@ -58,6 +15,11 @@ endblock %} {% block content %}
     <p>
       You currently have an active booking for
       <strong>{{ current_booking.room_name }}</strong>.
+    </p>
+
+    <p>
+      <strong>Room Type:</strong>
+      {{ current_booking.room_type }}
     </p>
 
     <p>
@@ -72,7 +34,8 @@ endblock %} {% block content %}
 
     <p>
       <strong>Breakfast:</strong>
-      {{ current_booking.breakfast_name or 'No breakfast selected' }}
+      {{ current_booking.breakfast_details or current_booking.breakfast_name or
+      'No breakfast selected' }}
     </p>
 
     <p>
@@ -85,53 +48,29 @@ endblock %} {% block content %}
       {{ current_booking.status }}
     </p>
 
-    <a
-      href="{{ url_for('system.booking_confirmation', booking_id=current_booking.booking_id) }}"
-      class="btn"
-    >
-      View Current Booking
-    </a>
+    <div class="action-buttons">
+      <a
+        href="{{ url_for('system.booking_confirmation', booking_id=current_booking.booking_id) }}"
+        class="btn"
+      >
+        View Current Booking
+      </a>
+
+      <form
+        method="POST"
+        action="{{ url_for('system.cancel_booking', booking_id=current_booking.booking_id) }}"
+        onsubmit="
+          return confirm(
+            'No refund after Cancelling. Do you want to continue?',
+          );
+        "
+      >
+        <button type="submit" class="btn btn-danger">Cancel Booking</button>
+      </form>
+    </div>
   </div>
 </section>
 {% endif %}
-
-<section class="dashboard-section">
-  <h2>Room Status / Current Status</h2>
-
-  <div class="table-container">
-    <table class="dashboard-table">
-      <thead>
-        <tr>
-          <th>Room</th>
-          <th>Type</th>
-          <th>Capacity</th>
-          <th>Price</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {% for room in room_statuses %}
-        <tr>
-          <td>{{ room.room_name }}</td>
-          <td>{{ room.room_type }}</td>
-          <td>{{ room.capacity }}</td>
-          <td>R{{ '%.2f'|format(room.price_per_night) }}</td>
-          <td>
-            {% if room.current_status == 'Occupied' %}
-            <span class="badge occupied">{{ room.current_status }}</span>
-            {% elif room.current_status == 'Available' %}
-            <span class="badge available">{{ room.current_status }}</span>
-            {% else %}
-            <span class="badge inactive">{{ room.current_status }}</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
 
 <section class="dashboard-section">
   <h2>My Bookings</h2>
@@ -146,6 +85,7 @@ endblock %} {% block content %}
           <th>Check In</th>
           <th>Check Out</th>
           <th>Guests</th>
+          <th>Breakfast</th>
           <th>Total</th>
           <th>Status</th>
           <th>Action</th>
@@ -161,6 +101,10 @@ endblock %} {% block content %}
           <td>{{ booking.check_in }}</td>
           <td>{{ booking.check_out }}</td>
           <td>{{ booking.guests }}</td>
+          <td>
+            {{ booking.breakfast_details or booking.breakfast_name or 'No
+            breakfast selected' }}
+          </td>
           <td>R{{ '%.2f'|format(booking.total_price) }}</td>
           <td>{{ booking.status }}</td>
 
@@ -173,8 +117,8 @@ endblock %} {% block content %}
               >
                 View Current Booking
               </a>
-              {% endif %} {% if not booking.breakfast_id and booking.status !=
-              'cancelled' %}
+              {% endif %} {% if not booking.breakfast_id and booking.can_cancel
+              %}
               <a
                 href="{{ url_for('system.add_breakfast_to_booking', booking_id=booking.booking_id) }}"
                 class="btn btn-sm"
@@ -198,14 +142,14 @@ endblock %} {% block content %}
               {% elif booking.status == 'cancelled' %}
               <span class="badge inactive">Cancelled</span>
               {% else %}
-              <span class="muted-text">Cannot cancel</span>
+              <span class="muted-text">Completed</span>
               {% endif %}
             </div>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="9">You do not have any bookings yet.</td>
+          <td colspan="10">You do not have any bookings yet.</td>
         </tr>
         {% endfor %}
       </tbody>

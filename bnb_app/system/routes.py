@@ -33,150 +33,11 @@ def dashboard():
     if session.get("role") == "admin":
         return redirect(url_for("system.admin_dashboard"))
 
-    today = datetime.today().date()
-
-    total_rooms_row = query_db(
-        "SELECT COUNT(*) AS total_rooms FROM rooms WHERE is_active = TRUE",
-        one=True,
-    )
-    total_rooms = total_rooms_row["total_rooms"] if total_rooms_row else 0
-
-    occupied_rooms_row = query_db(
-        """
-        SELECT COUNT(DISTINCT room_id) AS occupied_rooms
-        FROM bookings
-        WHERE status = 'confirmed'
-          AND check_in <= CURRENT_DATE
-          AND check_out > CURRENT_DATE
-        """,
-        one=True,
-    )
-    occupied_rooms = occupied_rooms_row["occupied_rooms"] if occupied_rooms_row else 0
-    available_rooms = total_rooms - occupied_rooms
-
-    total_guests_row = query_db(
-        """
-        SELECT COALESCE(SUM(guests), 0) AS total_guests
-        FROM bookings
-        WHERE status = 'confirmed'
-          AND check_in <= CURRENT_DATE
-          AND check_out > CURRENT_DATE
-        """,
-        one=True,
-    )
-    total_guests = total_guests_row["total_guests"] if total_guests_row else 0
-
-    total_reservations_row = query_db(
-        "SELECT COUNT(*) AS total_reservations FROM bookings",
-        one=True,
-    )
-    total_reservations = total_reservations_row["total_reservations"] if total_reservations_row else 0
-
-    pending_row = query_db(
-        "SELECT COUNT(*) AS total FROM bookings WHERE status = 'pending'",
-        one=True,
-    )
-    pending_reservations = pending_row["total"] if pending_row else 0
-
-    confirmed_row = query_db(
-        "SELECT COUNT(*) AS total FROM bookings WHERE status = 'confirmed'",
-        one=True,
-    )
-    confirmed_reservations = confirmed_row["total"] if confirmed_row else 0
-
-    cancelled_row = query_db(
-        "SELECT COUNT(*) AS total FROM bookings WHERE status = 'cancelled'",
-        one=True,
-    )
-    cancelled_reservations = cancelled_row["total"] if cancelled_row else 0
-
-    occupancy_rate = round((occupied_rooms / total_rooms) * 100, 1) if total_rooms else 0
-
-    room_statuses = query_db(
-        """
-        SELECT
-            r.room_id,
-            r.room_name,
-            r.room_type,
-            r.capacity,
-            r.price_per_night,
-            CASE
-                WHEN EXISTS (
-                    SELECT 1
-                    FROM bookings b
-                    WHERE b.room_id = r.room_id
-                      AND b.status = 'confirmed'
-                      AND b.check_in <= CURRENT_DATE
-                      AND b.check_out > CURRENT_DATE
-                )
-                THEN 'Occupied'
-                ELSE 'Available'
-            END AS current_status
-        FROM rooms r
-        WHERE r.is_active = TRUE
-        ORDER BY r.room_id
-        """
-    )
-
-    user_bookings = query_db(
-        """
-        SELECT
-            b.breakfast_id,
-            b.booking_id,
-            r.room_name,
-            r.room_type,
-            b.check_in,
-            b.check_out,
-            b.guests,
-            b.total_price,
-            b.status,
-            COALESCE(
-                STRING_AGG(
-                    TO_CHAR(bb.breakfast_date, 'YYYY-MM-DD') || ' - ' || bbo.name,
-                    ', ' ORDER BY bb.breakfast_date
-                ),
-                bo.name,
-                'No breakfast selected'
-            ) AS breakfast_name,
-            CASE
-                WHEN b.status IN ('pending', 'confirmed')
-                     AND b.check_out > CURRENT_DATE
-                THEN TRUE
-                ELSE FALSE
-            END AS can_cancel,
-            CASE
-                WHEN b.status != 'cancelled'
-                     AND b.check_out > CURRENT_DATE
-                THEN TRUE
-                ELSE FALSE
-            END AS is_current_booking
-        FROM bookings b
-        JOIN rooms r ON b.room_id = r.room_id
-        LEFT JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
-        LEFT JOIN booking_breakfasts bb ON b.booking_id = bb.booking_id
-        LEFT JOIN breakfast_options bbo ON bb.breakfast_id = bbo.breakfast_id
-        WHERE b.user_id = %s
-        GROUP BY
-            b.breakfast_id,
-            b.booking_id,
-            r.room_name,
-            r.room_type,
-            b.check_in,
-            b.check_out,
-            b.guests,
-            b.total_price,
-            b.status,
-            bo.name,
-            b.created_at
-        ORDER BY b.created_at DESC
-        """,
-        [session["user_id"]],
-    )
-
     current_booking = query_db(
         """
         SELECT
             b.booking_id,
+            b.breakfast_id,
             r.room_name,
             r.room_type,
             b.check_in,
@@ -186,22 +47,23 @@ def dashboard():
             b.status,
             COALESCE(
                 STRING_AGG(
-                    TO_CHAR(bb.breakfast_date, 'YYYY-MM-DD') || ' - ' || bbo.name,
+                    TO_CHAR(bb.breakfast_date, 'YYYY-MM-DD') || ' - ' || bo_day.name,
                     ', ' ORDER BY bb.breakfast_date
                 ),
                 bo.name,
                 'No breakfast selected'
-            ) AS breakfast_name
+            ) AS breakfast_details
         FROM bookings b
         JOIN rooms r ON b.room_id = r.room_id
         LEFT JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
         LEFT JOIN booking_breakfasts bb ON b.booking_id = bb.booking_id
-        LEFT JOIN breakfast_options bbo ON bb.breakfast_id = bbo.breakfast_id
+        LEFT JOIN breakfast_options bo_day ON bb.breakfast_id = bo_day.breakfast_id
         WHERE b.user_id = %s
-          AND b.status != 'cancelled'
+          AND b.status IN ('pending', 'confirmed')
           AND b.check_out > CURRENT_DATE
         GROUP BY
             b.booking_id,
+            b.breakfast_id,
             r.room_name,
             r.room_type,
             b.check_in,
@@ -209,8 +71,7 @@ def dashboard():
             b.guests,
             b.total_price,
             b.status,
-            bo.name,
-            b.created_at
+            bo.name
         ORDER BY b.check_in ASC, b.created_at DESC
         LIMIT 1
         """,
@@ -218,22 +79,64 @@ def dashboard():
         one=True,
     )
 
+    user_bookings = query_db(
+        """
+        SELECT
+            b.booking_id,
+            b.breakfast_id,
+            r.room_name,
+            r.room_type,
+            b.check_in,
+            b.check_out,
+            b.guests,
+            b.total_price,
+            b.status,
+            COALESCE(
+                STRING_AGG(
+                    TO_CHAR(bb.breakfast_date, 'YYYY-MM-DD') || ' - ' || bo_day.name,
+                    ', ' ORDER BY bb.breakfast_date
+                ),
+                bo.name,
+                'No breakfast selected'
+            ) AS breakfast_details,
+            CASE
+                WHEN b.status IN ('pending', 'confirmed')
+                     AND b.check_out > CURRENT_DATE
+                THEN TRUE
+                ELSE FALSE
+            END AS can_cancel,
+            CASE
+                WHEN b.status IN ('pending', 'confirmed')
+                     AND b.check_out > CURRENT_DATE
+                THEN TRUE
+                ELSE FALSE
+            END AS can_view_current
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.room_id
+        LEFT JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
+        LEFT JOIN booking_breakfasts bb ON b.booking_id = bb.booking_id
+        LEFT JOIN breakfast_options bo_day ON bb.breakfast_id = bo_day.breakfast_id
+        WHERE b.user_id = %s
+        GROUP BY
+            b.booking_id,
+            b.breakfast_id,
+            r.room_name,
+            r.room_type,
+            b.check_in,
+            b.check_out,
+            b.guests,
+            b.total_price,
+            b.status,
+            bo.name
+        ORDER BY b.created_at DESC
+        """,
+        [session["user_id"]],
+    )
+
     return render_template(
         "system/dashboard.html",
-        total_rooms=total_rooms,
-        occupied_rooms=occupied_rooms,
-        available_rooms=available_rooms,
-        total_guests=total_guests,
-        total_reservations=total_reservations,
-        occupancy_rate=occupancy_rate,
-        pending_reservations=pending_reservations,
-        confirmed_reservations=confirmed_reservations,
-        cancelled_reservations=cancelled_reservations,
-        room_statuses=room_statuses,
-        user_bookings=user_bookings,
-        bookings=user_bookings,
         current_booking=current_booking,
-        today=today,
+        user_bookings=user_bookings,
     )
 
 
