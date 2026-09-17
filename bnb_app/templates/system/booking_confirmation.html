@@ -1,0 +1,85 @@
+{% extends 'base.html' %} {% block title %}Booking Confirmation{% endblock %} {%
+block content %}
+
+<h1>Booking Confirmation</h1>
+
+<div class="card simple booking-confirmation-card">
+  <div class="card-body">
+    {% if booking.status == 'cancelled' %}
+    <div class="alert alert-danger">This booking has been cancelled.</div>
+    {% elif not is_current_booking %}
+    <div class="alert alert-warning">This booking has already passed.</div>
+    {% else %}
+    <div class="alert alert-success">
+      Booking confirmed successfully. Your room has been reserved.
+    </div>
+    {% endif %}
+
+    <h2>Booking Reference: #{{ booking.booking_id }}</h2>
+
+    <p><strong>Room:</strong> {{ booking.room_name }}</p>
+    <p><strong>Room Type:</strong> {{ booking.room_type }}</p>
+    <p><strong>Check-in Date:</strong> {{ booking.check_in }}</p>
+    <p><strong>Check-out Date:</strong> {{ booking.check_out }}</p>
+    <p><strong>Length of Stay:</strong> {{ nights }} night(s)</p>
+    <p><strong>Number of Guests:</strong> {{ booking.guests }}</p>
+
+    <p>
+      <strong>Room Price Per Night:</strong>
+      R{{ '%.2f'|format(booking.price_per_night) }}
+    </p>
+
+    <p>
+      <strong>Room Total:</strong>
+      R{{ '%.2f'|format(room_total) }}
+    </p>
+
+    <p>
+      <strong>Breakfast:</strong>
+      {{ breakfast_details }}
+    </p>
+
+    {% if breakfast_total > 0 %}
+    <p>
+      <strong>Breakfast Total:</strong>
+      R{{ '%.2f'|format(breakfast_total) }}
+    </p>
+    {% endif %} {% if booking.special_requests %}
+    <p>
+      <strong>Special Requests:</strong>
+      {{ booking.special_requests }}
+    </p>
+    {% endif %}
+
+    <p>
+      <strong>Total Amount:</strong>
+      R{{ '%.2f'|format(booking.total_price) }}
+    </p>
+
+    <p><strong>Status:</strong> {{ booking.status }}</p>
+
+    <div class="action-buttons">
+      <a href="{{ url_for('system.dashboard') }}" class="btn">
+        Back to Dashboard
+      </a>
+
+      {% if is_current_booking %}
+      <a
+        href="{{ url_for('system.add_breakfast_to_booking', booking_id=booking.booking_id) }}"
+        class="btn"
+      >
+        Add / Change Breakfast
+      </a>
+
+      <form
+        method="post"
+        action="{{ url_for('system.cancel_booking', booking_id=booking.booking_id) }}"
+      >
+        <button class="btn btn-danger" type="submit">Cancel Booking</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

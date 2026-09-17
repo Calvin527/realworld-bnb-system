@@ -1,4 +1,5 @@
 
+
 from datetime import datetime
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 import os
@@ -6,13 +7,6 @@ from werkzeug.utils import secure_filename
 from flask import current_app
 
 from ..db import execute_db, query_db
-from ..services.email_service import (
-    send_booking_cancellation_email,
-    send_booking_confirmation_email,
-    send_admin_booking_cancellation_email,
-    send_admin_notification_email,
-    send_breakfast_purchase_email,
-)
 from ..utils import admin_required, inject_common, login_required
 
 
@@ -20,11 +14,6 @@ system_bp = Blueprint("system", __name__)
 system_bp.context_processor(inject_common)
 
 
-def notify_admin(subject, body):
-    try:
-        send_admin_notification_email(subject, body)
-    except Exception:
-        pass
 
 
 @system_bp.route("/")
@@ -43,6 +32,8 @@ def homepage():
 def dashboard():
     if session.get("role") == "admin":
         return redirect(url_for("system.admin_dashboard"))
+
+    today = datetime.today().date()
 
     total_rooms_row = query_db(
         "SELECT COUNT(*) AS total_rooms FROM rooms WHERE is_active = TRUE",
@@ -127,10 +118,6 @@ def dashboard():
         """
     )
 
-    
-
-    
-
     user_bookings = query_db(
         """
         SELECT
@@ -143,18 +130,92 @@ def dashboard():
             b.guests,
             b.total_price,
             b.status,
+            COALESCE(
+                STRING_AGG(
+                    TO_CHAR(bb.breakfast_date, 'YYYY-MM-DD') || ' - ' || bbo.name,
+                    ', ' ORDER BY bb.breakfast_date
+                ),
+                bo.name,
+                'No breakfast selected'
+            ) AS breakfast_name,
             CASE
                 WHEN b.status IN ('pending', 'confirmed')
                      AND b.check_out > CURRENT_DATE
                 THEN TRUE
                 ELSE FALSE
-            END AS can_cancel
+            END AS can_cancel,
+            CASE
+                WHEN b.status != 'cancelled'
+                     AND b.check_out > CURRENT_DATE
+                THEN TRUE
+                ELSE FALSE
+            END AS is_current_booking
         FROM bookings b
         JOIN rooms r ON b.room_id = r.room_id
+        LEFT JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
+        LEFT JOIN booking_breakfasts bb ON b.booking_id = bb.booking_id
+        LEFT JOIN breakfast_options bbo ON bb.breakfast_id = bbo.breakfast_id
         WHERE b.user_id = %s
+        GROUP BY
+            b.breakfast_id,
+            b.booking_id,
+            r.room_name,
+            r.room_type,
+            b.check_in,
+            b.check_out,
+            b.guests,
+            b.total_price,
+            b.status,
+            bo.name,
+            b.created_at
         ORDER BY b.created_at DESC
         """,
         [session["user_id"]],
+    )
+
+    current_booking = query_db(
+        """
+        SELECT
+            b.booking_id,
+            r.room_name,
+            r.room_type,
+            b.check_in,
+            b.check_out,
+            b.guests,
+            b.total_price,
+            b.status,
+            COALESCE(
+                STRING_AGG(
+                    TO_CHAR(bb.breakfast_date, 'YYYY-MM-DD') || ' - ' || bbo.name,
+                    ', ' ORDER BY bb.breakfast_date
+                ),
+                bo.name,
+                'No breakfast selected'
+            ) AS breakfast_name
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.room_id
+        LEFT JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
+        LEFT JOIN booking_breakfasts bb ON b.booking_id = bb.booking_id
+        LEFT JOIN breakfast_options bbo ON bb.breakfast_id = bbo.breakfast_id
+        WHERE b.user_id = %s
+          AND b.status != 'cancelled'
+          AND b.check_out > CURRENT_DATE
+        GROUP BY
+            b.booking_id,
+            r.room_name,
+            r.room_type,
+            b.check_in,
+            b.check_out,
+            b.guests,
+            b.total_price,
+            b.status,
+            bo.name,
+            b.created_at
+        ORDER BY b.check_in ASC, b.created_at DESC
+        LIMIT 1
+        """,
+        [session["user_id"]],
+        one=True,
     )
 
     return render_template(
@@ -169,9 +230,10 @@ def dashboard():
         confirmed_reservations=confirmed_reservations,
         cancelled_reservations=cancelled_reservations,
         room_statuses=room_statuses,
-        
-        
         user_bookings=user_bookings,
+        bookings=user_bookings,
+        current_booking=current_booking,
+        today=today,
     )
 
 
@@ -228,6 +290,10 @@ def book(room_id):
             flash("Please provide valid dates.", "danger")
             return render_template("system/book.html", room=room, breakfasts=breakfasts)
 
+        if check_in_date < datetime.today().date():
+            flash("Check-in date cannot be in the past.", "danger")
+            return render_template("system/book.html", room=room, breakfasts=breakfasts)
+
         if check_out_date <= check_in_date:
             flash("Check-out date must be after check-in date.", "danger")
             return render_template("system/book.html", room=room, breakfasts=breakfasts)
@@ -253,27 +319,50 @@ def book(room_id):
             return render_template("system/book.html", room=room, breakfasts=breakfasts)
 
         nights = (check_out_date - check_in_date).days
-        breakfast_price = 0.0
+
         if nights <= 0:
             flash("Check-out must be after check-in.", "danger")
             return render_template("system/book.html", room=room, breakfasts=breakfasts)
 
+        breakfast_price = 0.0
+
         if breakfast_id:
             breakfast = query_db(
-                "SELECT * FROM breakfast_options WHERE breakfast_id = %s",
+                """
+                SELECT *
+                FROM breakfast_options
+                WHERE breakfast_id = %s
+                  AND is_active = TRUE
+                """,
                 [breakfast_id],
                 one=True,
             )
+
             if breakfast:
                 breakfast_price = float(breakfast["price"])
+            else:
+                breakfast_id = None
 
-        total_price = float(room["price_per_night"]) * nights + breakfast_price * guests * nights
+        room_total = float(room["price_per_night"]) * nights
+        breakfast_total = breakfast_price * guests * nights
+        total_price = room_total + breakfast_total
 
         execute_db(
             """
             INSERT INTO bookings
-            (user_id, room_id, breakfast_id, check_in, check_out, guests, special_requests, total_price, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'confirmed')
+                (
+                    user_id,
+                    room_id,
+                    breakfast_id,
+                    check_in,
+                    check_out,
+                    guests,
+                    special_requests,
+                    total_price,
+                    status
+                )
+            VALUES
+                (%s, %s, %s, %s, %s, %s, %s, %s, 'confirmed')
             """,
             [
                 session["user_id"],
@@ -287,73 +376,134 @@ def book(room_id):
             ],
         )
 
-        booking = query_db(
+        new_booking = query_db(
             """
-            SELECT
-                u.email,
-                u.full_name,
-                r.room_name,
-                r.room_type,
-                b.check_in,
-                b.check_out,
-                b.guests,
-                b.total_price,
-                COALESCE(bo.name, 'No breakfast') AS breakfast_name
-            FROM bookings b
-            JOIN users u ON b.user_id = u.user_id
-            JOIN rooms r ON b.room_id = r.room_id
-            LEFT JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
-            WHERE b.user_id = %s AND b.room_id = %s
-            ORDER BY b.booking_id DESC
+            SELECT booking_id
+            FROM bookings
+            WHERE user_id = %s
+              AND room_id = %s
+              AND check_in = %s
+              AND check_out = %s
+            ORDER BY booking_id DESC
             LIMIT 1
             """,
-            [session["user_id"], room_id],
+            [session["user_id"], room_id, check_in_date, check_out_date],
             one=True,
         )
 
-        email_sent = False
-
-        if booking:
-            email_sent, email_message = send_booking_confirmation_email(
-                booking["email"],
-                booking["full_name"],
-                booking,
+        if not new_booking:
+            flash(
+                "Booking was created, but the confirmation page could not be loaded.",
+                "warning",
             )
+            return redirect(url_for("system.dashboard"))
 
-            if not email_sent:
-                flash(
-                    f"Booking confirmed, but confirmation email was not sent. Reason: {email_message}",
-                    "warning",
-                )
-
-        notify_admin(
-            "New Booking Made - Makgobelo Lodge",
-            f"""
-A new booking has been made.
-
-Guest: {session.get('full_name')}
-Email: {session.get('email')}
-Room: {room['room_name']} ({room['room_type']})
-Check-in: {check_in_date}
-Check-out: {check_out_date}
-Guests: {guests}
-Total Price: R{total_price:.2f}
-
-Makgobelo Lodge System
-""",
+        flash(
+            f"Booking confirmed successfully. Total amount: R{total_price:.2f}",
+            "success",
         )
 
-        if email_sent:
-            flash(
-                f"Booking confirmed. A confirmation email has been sent. Total price: R{total_price:.2f}",
-                "success",
+        return redirect(
+            url_for(
+                "system.booking_confirmation",
+                booking_id=new_booking["booking_id"],
             )
-        else:
-            flash(f"Booking confirmed. Total price: R{total_price:.2f}", "success")
-
-        return redirect(url_for("system.dashboard"))
+        )
 
     return render_template("system/book.html", room=room, breakfasts=breakfasts)
+
+
+
+@system_bp.route("/system/booking/<int:booking_id>/confirmation")
+@login_required
+def booking_confirmation(booking_id):
+    booking = query_db(
+        """
+        SELECT
+            b.booking_id,
+            b.user_id,
+            b.breakfast_id,
+            b.check_in,
+            b.check_out,
+            b.guests,
+            b.special_requests,
+            b.total_price,
+            b.status,
+            b.created_at,
+            r.room_name,
+            r.room_type,
+            r.capacity,
+            r.price_per_night,
+            bo.name AS breakfast_name,
+            bo.description AS breakfast_description,
+            bo.price AS breakfast_price
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.room_id
+        LEFT JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
+        WHERE b.booking_id = %s
+          AND b.user_id = %s
+        """,
+        [booking_id, session["user_id"]],
+        one=True,
+    )
+
+    if not booking:
+        flash("Booking not found.", "danger")
+        return redirect(url_for("system.dashboard"))
+
+    breakfast_items = query_db(
+        """
+        SELECT
+            bb.breakfast_date,
+            bb.quantity,
+            bb.price,
+            bo.name AS breakfast_name
+        FROM booking_breakfasts bb
+        JOIN breakfast_options bo ON bb.breakfast_id = bo.breakfast_id
+        WHERE bb.booking_id = %s
+        ORDER BY bb.breakfast_date
+        """,
+        [booking_id],
+    )
+
+    nights = (booking["check_out"] - booking["check_in"]).days
+    room_total = float(booking["price_per_night"]) * nights
+
+    breakfast_price = 0.0
+    breakfast_total = 0.0
+    breakfast_details = "No breakfast selected"
+
+    if breakfast_items:
+        breakfast_total = sum(float(item["price"]) for item in breakfast_items)
+        breakfast_details = ", ".join(
+            f"{item['breakfast_date']} - {item['breakfast_name']} "
+            f"x{item['quantity']} = R{float(item['price']):.2f}"
+            for item in breakfast_items
+        )
+    elif booking["breakfast_price"]:
+        breakfast_price = float(booking["breakfast_price"])
+        breakfast_total = breakfast_price * int(booking["guests"]) * nights
+        breakfast_details = booking["breakfast_name"]
+
+    today = datetime.today().date()
+
+    is_current_booking = (
+        booking["status"] != "cancelled"
+        and booking["check_out"] > today
+    )
+
+    return render_template(
+        "system/booking_confirmation.html",
+        booking=booking,
+        breakfast_items=breakfast_items,
+        breakfast_details=breakfast_details,
+        nights=nights,
+        room_total=room_total,
+        breakfast_price=breakfast_price,
+        breakfast_total=breakfast_total,
+        is_current_booking=is_current_booking,
+        today=today,
+    )
 
 
 @system_bp.route("/system/cancel-booking/<int:booking_id>", methods=["POST"])
@@ -364,15 +514,10 @@ def cancel_booking(booking_id):
         SELECT
             b.booking_id,
             b.status,
-            b.check_in,
-            b.check_out,
-            r.room_name,
-            u.email,
-            u.full_name
+            b.check_out
         FROM bookings b
-        JOIN rooms r ON b.room_id = r.room_id
-        JOIN users u ON b.user_id = u.user_id
-        WHERE b.booking_id = %s AND b.user_id = %s
+        WHERE b.booking_id = %s
+          AND b.user_id = %s
         """,
         [booking_id, session["user_id"]],
         one=True,
@@ -391,43 +536,16 @@ def cancel_booking(booking_id):
         return redirect(url_for("system.dashboard"))
 
     execute_db(
-        "UPDATE bookings SET status = %s WHERE booking_id = %s",
-        ["cancelled", booking_id],
+        """
+        UPDATE bookings
+        SET status = %s
+        WHERE booking_id = %s
+          AND user_id = %s
+        """,
+        ["cancelled", booking_id, session["user_id"]],
     )
 
-    sent, message = send_booking_cancellation_email(
-        booking["email"],
-        booking["full_name"],
-        booking["room_name"],
-        booking["check_in"],
-        booking["check_out"],
-    )
-
-    notify_admin(
-        "User Cancelled Booking - Makgobelo Lodge",
-        f"""
-A user has cancelled a booking.
-
-Guest: {booking['full_name']}
-Email: {booking['email']}
-Room: {booking['room_name']}
-Check-in: {booking['check_in']}
-Check-out: {booking['check_out']}
-
-Policy Notice: No refund after cancelling.
-
-Makgobelo Lodge System
-""",
-    )
-
-    if sent:
-        flash("Booking cancelled successfully. A cancellation email has been sent.", "info")
-    else:
-        flash(
-            f"Booking cancelled successfully, but cancellation email was not sent. Reason: {message}",
-            "warning",
-        )
-
+    flash("Booking cancelled successfully.", "info")
     return redirect(url_for("system.dashboard"))
 
 
@@ -586,17 +704,10 @@ def admin_cancel_booking(booking_id):
     booking = query_db(
         """
         SELECT
-            b.booking_id,
-            b.status,
-            b.check_in,
-            b.check_out,
-            r.room_name,
-            u.email,
-            u.full_name
-        FROM bookings b
-        JOIN rooms r ON b.room_id = r.room_id
-        JOIN users u ON b.user_id = u.user_id
-        WHERE b.booking_id = %s
+            booking_id,
+            status
+        FROM bookings
+        WHERE booking_id = %s
         """,
         [booking_id],
         one=True,
@@ -615,44 +726,7 @@ def admin_cancel_booking(booking_id):
         ["cancelled", booking_id],
     )
 
-    refund_message = (
-        "A refund notice has been recorded. Please contact Makgobelo Lodge "
-        "for refund processing details."
-    )
-
-    sent, message = send_admin_booking_cancellation_email(
-        booking["email"],
-        booking["full_name"],
-        booking["room_name"],
-        booking["check_in"],
-        booking["check_out"],
-        refund_message,
-    )
-
-    notify_admin(
-        "Admin Cancelled Booking - Makgobelo Lodge",
-        f"""
-An admin cancelled a booking.
-
-Guest: {booking['full_name']}
-Email: {booking['email']}
-Room: {booking['room_name']}
-Check-in: {booking['check_in']}
-Check-out: {booking['check_out']}
-Refund Message: {refund_message}
-
-Makgobelo Lodge System
-""",
-    )
-
-    if sent:
-        flash("Booking cancelled successfully by admin. Client notification email sent.", "info")
-    else:
-        flash(
-            f"Booking cancelled by admin, but client email was not sent. Reason: {message}",
-            "warning",
-        )
-
+    flash("Booking cancelled successfully by admin.", "info")
     return redirect(url_for("system.admin_dashboard"))
 
 
@@ -982,12 +1056,9 @@ def add_breakfast_to_booking(booking_id):
             b.total_price,
             b.status,
             r.room_name,
-            r.price_per_night,
-            u.email,
-            u.full_name
+            r.price_per_night
         FROM bookings b
         JOIN rooms r ON b.room_id = r.room_id
-        JOIN users u ON b.user_id = u.user_id
         WHERE b.booking_id = %s
           AND b.user_id = %s
         """,
@@ -1056,22 +1127,27 @@ def add_breakfast_to_booking(booking_id):
 
         check_in = booking["check_in"]
         check_out = booking["check_out"]
-
-        execute_db(
-            "DELETE FROM booking_breakfasts WHERE booking_id = %s",
-            [booking_id],
-        )
-
+        quantity = int(booking["guests"])
         breakfast_total = 0.0
+        rows_to_insert = []
+        selected_days = set()
 
-        for date_value, breakfast_id in zip(selected_dates, selected_breakfasts):
-            if not date_value or not breakfast_id:
+        for date_value, selected_breakfast_id in zip(selected_dates, selected_breakfasts):
+            if not date_value or not selected_breakfast_id:
                 continue
 
-            breakfast_date = datetime.strptime(date_value, "%Y-%m-%d").date()
+            try:
+                breakfast_date = datetime.strptime(date_value, "%Y-%m-%d").date()
+            except ValueError:
+                flash("Please provide a valid breakfast date.", "danger")
+                return redirect(url_for("system.add_breakfast_to_booking", booking_id=booking_id))
 
             if breakfast_date < check_in or breakfast_date >= check_out:
                 flash("Breakfast date must be between check-in and before check-out.", "danger")
+                return redirect(url_for("system.add_breakfast_to_booking", booking_id=booking_id))
+
+            if breakfast_date in selected_days:
+                flash("You can only choose one breakfast option per day.", "danger")
                 return redirect(url_for("system.add_breakfast_to_booking", booking_id=booking_id))
 
             breakfast = query_db(
@@ -1081,7 +1157,7 @@ def add_breakfast_to_booking(booking_id):
                 WHERE breakfast_id = %s
                   AND is_active = TRUE
                 """,
-                [breakfast_id],
+                [selected_breakfast_id],
                 one=True,
             )
 
@@ -1089,10 +1165,29 @@ def add_breakfast_to_booking(booking_id):
                 flash("Invalid breakfast selected.", "danger")
                 return redirect(url_for("system.add_breakfast_to_booking", booking_id=booking_id))
 
-            quantity = int(booking["guests"])
+            selected_days.add(breakfast_date)
             price = float(breakfast["price"]) * quantity
             breakfast_total += price
 
+            rows_to_insert.append(
+                (
+                    selected_breakfast_id,
+                    breakfast_date,
+                    quantity,
+                    price,
+                )
+            )
+
+        if not rows_to_insert:
+            flash("Please select at least one valid breakfast option.", "danger")
+            return redirect(url_for("system.add_breakfast_to_booking", booking_id=booking_id))
+
+        execute_db(
+            "DELETE FROM booking_breakfasts WHERE booking_id = %s",
+            [booking_id],
+        )
+
+        for selected_breakfast_id, breakfast_date, quantity, price in rows_to_insert:
             execute_db(
                 """
                 INSERT INTO booking_breakfasts
@@ -1100,7 +1195,7 @@ def add_breakfast_to_booking(booking_id):
                 VALUES
                     (%s, %s, %s, %s, %s)
                 """,
-                [booking_id, breakfast_id, breakfast_date, quantity, price],
+                [booking_id, selected_breakfast_id, breakfast_date, quantity, price],
             )
 
         nights = (booking["check_out"] - booking["check_in"]).days
@@ -1110,45 +1205,16 @@ def add_breakfast_to_booking(booking_id):
         execute_db(
             """
             UPDATE bookings
-            SET total_price = %s
+            SET total_price = %s,
+                breakfast_id = NULL
             WHERE booking_id = %s
               AND user_id = %s
             """,
             [new_total, booking_id, session["user_id"]],
         )
 
-        send_breakfast_purchase_email(
-            booking["email"],
-            booking["full_name"],
-            {
-                "room_name": booking["room_name"],
-                "check_in": booking["check_in"],
-                "check_out": booking["check_out"],
-                "breakfast_name": "Multiple breakfast selections",
-                "breakfast_cost": breakfast_total,
-                "total_price": new_total,
-            },
-        )
-
-        notify_admin(
-            "Breakfast Updated - Makgobelo Lodge",
-            f"""
-A guest updated breakfast selections.
-
-Guest: {booking['full_name']}
-Email: {booking['email']}
-Room: {booking['room_name']}
-Check-in: {booking['check_in']}
-Check-out: {booking['check_out']}
-Breakfast Total: R{breakfast_total:.2f}
-Updated Total: R{new_total:.2f}
-
-Makgobelo Lodge System
-""",
-        )
-
         flash("Breakfast selections saved successfully.", "success")
-        return redirect(url_for("system.dashboard"))
+        return redirect(url_for("system.booking_confirmation", booking_id=booking_id))
 
     return render_template(
         "system/add_breakfast.html",

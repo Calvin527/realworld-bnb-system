@@ -1,5 +1,6 @@
 {% extends 'base.html' %} {% block title %}Dashboard | Makgobelo Lodge{%
 endblock %} {% block content %}
+
 <h1>Dashboard</h1>
 
 <section class="stats-grid">
@@ -48,6 +49,51 @@ endblock %} {% block content %}
     <p>{{ cancelled_reservations }}</p>
   </div>
 </section>
+
+{% if current_booking %}
+<section class="dashboard-section">
+  <h2>Current Booking</h2>
+
+  <div class="current-booking-card">
+    <p>
+      You currently have an active booking for
+      <strong>{{ current_booking.room_name }}</strong>.
+    </p>
+
+    <p>
+      <strong>Dates:</strong>
+      {{ current_booking.check_in }} to {{ current_booking.check_out }}
+    </p>
+
+    <p>
+      <strong>Guests:</strong>
+      {{ current_booking.guests }}
+    </p>
+
+    <p>
+      <strong>Breakfast:</strong>
+      {{ current_booking.breakfast_name or 'No breakfast selected' }}
+    </p>
+
+    <p>
+      <strong>Total:</strong>
+      R{{ '%.2f'|format(current_booking.total_price) }}
+    </p>
+
+    <p>
+      <strong>Status:</strong>
+      {{ current_booking.status }}
+    </p>
+
+    <a
+      href="{{ url_for('system.booking_confirmation', booking_id=current_booking.booking_id) }}"
+      class="btn"
+    >
+      View Current Booking
+    </a>
+  </div>
+</section>
+{% endif %}
 
 <section class="dashboard-section">
   <h2>Room Status / Current Status</h2>
@@ -120,8 +166,15 @@ endblock %} {% block content %}
 
           <td>
             <div class="action-buttons">
-              {% if not booking.breakfast_id and booking.status != 'cancelled'
-              %}
+              {% if booking.can_cancel %}
+              <a
+                href="{{ url_for('system.booking_confirmation', booking_id=booking.booking_id) }}"
+                class="btn btn-sm"
+              >
+                View Current Booking
+              </a>
+              {% endif %} {% if not booking.breakfast_id and booking.status !=
+              'cancelled' %}
               <a
                 href="{{ url_for('system.add_breakfast_to_booking', booking_id=booking.booking_id) }}"
                 class="btn btn-sm"
