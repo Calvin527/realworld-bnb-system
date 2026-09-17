@@ -33,6 +33,59 @@ def dashboard():
     if session.get("role") == "admin":
         return redirect(url_for("system.admin_dashboard"))
 
+    available_rooms_row = query_db(
+        """
+        SELECT COUNT(*) AS available_rooms
+        FROM rooms r
+        WHERE r.is_active = TRUE
+          AND NOT EXISTS (
+              SELECT 1
+              FROM bookings b
+              WHERE b.room_id = r.room_id
+                AND b.status IN ('pending', 'confirmed')
+                AND b.check_in <= CURRENT_DATE
+                AND b.check_out > CURRENT_DATE
+          )
+        """,
+        one=True,
+    )
+
+    available_rooms = available_rooms_row["available_rooms"] if available_rooms_row else 0
+
+    my_active_bookings_row = query_db(
+        """
+        SELECT COUNT(*) AS my_active_bookings
+        FROM bookings
+        WHERE user_id = %s
+          AND status IN ('pending', 'confirmed')
+          AND check_out > CURRENT_DATE
+        """,
+        [session["user_id"]],
+        one=True,
+    )
+
+    my_active_bookings = (
+        my_active_bookings_row["my_active_bookings"]
+        if my_active_bookings_row
+        else 0
+    )
+
+    my_booking_history_row = query_db(
+        """
+        SELECT COUNT(*) AS my_booking_history
+        FROM bookings
+        WHERE user_id = %s
+        """,
+        [session["user_id"]],
+        one=True,
+    )
+
+    my_booking_history = (
+        my_booking_history_row["my_booking_history"]
+        if my_booking_history_row
+        else 0
+    )
+
     current_booking = query_db(
         """
         SELECT
@@ -104,13 +157,7 @@ def dashboard():
                      AND b.check_out > CURRENT_DATE
                 THEN TRUE
                 ELSE FALSE
-            END AS can_cancel,
-            CASE
-                WHEN b.status IN ('pending', 'confirmed')
-                     AND b.check_out > CURRENT_DATE
-                THEN TRUE
-                ELSE FALSE
-            END AS can_view_current
+            END AS can_cancel
         FROM bookings b
         JOIN rooms r ON b.room_id = r.room_id
         LEFT JOIN breakfast_options bo ON b.breakfast_id = bo.breakfast_id
@@ -135,6 +182,9 @@ def dashboard():
 
     return render_template(
         "system/dashboard.html",
+        available_rooms=available_rooms,
+        my_active_bookings=my_active_bookings,
+        my_booking_history=my_booking_history,
         current_booking=current_booking,
         user_bookings=user_bookings,
     )

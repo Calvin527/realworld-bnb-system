@@ -7,6 +7,23 @@ endblock %} {% block content %}
   <a class="btn" href="{{ url_for('system.rooms') }}">Browse Rooms</a>
 </p>
 
+<section class="stats-grid">
+  <div class="stat-card">
+    <h3>Available Rooms</h3>
+    <p>{{ available_rooms }}</p>
+  </div>
+
+  <div class="stat-card">
+    <h3>My Active Bookings</h3>
+    <p>{{ my_active_bookings }}</p>
+  </div>
+
+  <div class="stat-card">
+    <h3>My Booking History</h3>
+    <p>{{ my_booking_history }}</p>
+  </div>
+</section>
+
 {% if current_booking %}
 <section class="dashboard-section">
   <h2>Current Booking</h2>
@@ -34,8 +51,7 @@ endblock %} {% block content %}
 
     <p>
       <strong>Breakfast:</strong>
-      {{ current_booking.breakfast_details or current_booking.breakfast_name or
-      'No breakfast selected' }}
+      {{ current_booking.breakfast_details or 'No breakfast selected' }}
     </p>
 
     <p>
@@ -101,10 +117,7 @@ endblock %} {% block content %}
           <td>{{ booking.check_in }}</td>
           <td>{{ booking.check_out }}</td>
           <td>{{ booking.guests }}</td>
-          <td>
-            {{ booking.breakfast_details or booking.breakfast_name or 'No
-            breakfast selected' }}
-          </td>
+          <td>{{ booking.breakfast_details or 'No breakfast selected' }}</td>
           <td>R{{ '%.2f'|format(booking.total_price) }}</td>
           <td>{{ booking.status }}</td>
 
