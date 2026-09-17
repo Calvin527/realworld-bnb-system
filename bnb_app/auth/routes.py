@@ -336,76 +336,65 @@ def verify_email():
 
 @auth_bp.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        recovery_code = normalize_recovery_code(request.form.get("recovery_code", ""))
-        password = request.form.get("password", "")
-        confirm_password = request.form.get("confirm_password", "")
+    if request.method == "GET":
+        flash("Enter secret recovery code and new password.", "info")
+        return render_template("auth/forgot_password.html")
 
-        if not email or not recovery_code or not password or not confirm_password:
-            flash("Email, secret recovery code, password, and confirm password are required.", "danger")
-            return render_template("auth/forgot_password.html")
+    recovery_code = request.form.get("recovery_code", "").strip().upper()
+    password = request.form.get("password", "")
+    confirm_password = request.form.get("confirm_password", "")
 
-        if not is_valid_gmail(email):
-            flash("Please enter a valid Gmail address.", "danger")
-            return render_template("auth/forgot_password.html")
+    if not recovery_code or not password or not confirm_password:
+        flash("Secret recovery code, new password, and confirm password are required.", "danger")
+        return render_template("auth/forgot_password.html")
 
-        if password != confirm_password:
-            flash("Passwords do not match.", "danger")
-            return render_template("auth/forgot_password.html")
+    if password != confirm_password:
+        flash("Passwords do not match.", "danger")
+        return render_template("auth/forgot_password.html")
 
-        password_ok, password_message = validate_password(password)
-        if not password_ok:
-            flash(password_message, "danger")
-            return render_template("auth/forgot_password.html")
+    password_ok, password_message = validate_password(password)
+    if not password_ok:
+        flash(password_message, "danger")
+        return render_template("auth/forgot_password.html")
 
-        user = query_db(
-            """
-            SELECT *
-            FROM users
-            WHERE email = %s
-            """,
-            [email],
-            one=True,
+    users = query_db(
+        """
+        SELECT user_id, recovery_code_hash
+        FROM users
+        WHERE recovery_code_hash IS NOT NULL
+        """
+    )
+
+    matched_user = None
+
+    for user in users:
+        if check_password_hash(user["recovery_code_hash"], recovery_code):
+            matched_user = user
+            break
+
+    if not matched_user:
+        flash(
+            "Invalid secret recovery code. Click Forgot Secret Code for admin assistance.",
+            "danger"
         )
+        return render_template("auth/forgot_password.html")
 
-        if not user:
-            flash("Invalid email or secret recovery code.", "danger")
-            return render_template("auth/forgot_password.html")
+    execute_db(
+        """
+        UPDATE users
+        SET password_hash = %s,
+            failed_login_attempts = 0,
+            is_locked = FALSE
+        WHERE user_id = %s
+        """,
+        [generate_password_hash(password), matched_user["user_id"]],
+    )
 
-        recovery_code_hash = row_value(user, "recovery_code_hash")
-
-        if not recovery_code_hash:
-            flash(
-                f"This account does not have a secret recovery code yet. "
-                f"Please send an email to {get_admin_contact()} for assistance.",
-                "warning",
-            )
-            return render_template("auth/forgot_password.html")
-
-        if not check_password_hash(recovery_code_hash, recovery_code):
-            flash(
-                f"Invalid email or secret recovery code. "
-                f"If you forgot your secret code, please send an email to {get_admin_contact()} for assistance.",
-                "danger",
-            )
-            return render_template("auth/forgot_password.html")
-
-        execute_db(
-            """
-            UPDATE users
-            SET password_hash = %s,
-                failed_login_attempts = 0,
-                is_locked = FALSE
-            WHERE user_id = %s
-            """,
-            [generate_password_hash(password), user["user_id"]],
-        )
-
-        flash("Password reset successfully. You can now log in.", "success")
-        return redirect(url_for("auth.login"))
-
-    return render_template("auth/forgot_password.html")
+    flash("Password reset successfully. You can now log in.", "success")
+    return redirect(url_for("auth.login"))
+@auth_bp.route("/forgot-secret-code")
+def forgot_secret_code():
+    return render_template("auth/forgot_secret_code.html")
 
 
 @auth_bp.route("/reset-password", methods=["GET", "POST"])

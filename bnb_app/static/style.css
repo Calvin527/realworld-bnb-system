@@ -767,3 +767,19 @@ a {
   color: #2c3e50;
   margin: 0;
 }
+.forgot-secret-area {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.contact-box {
+  background: #f1f5f9;
+  border-left: 4px solid #2c3e50;
+  padding: 15px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.btn-secondary {
+  background: #6c757d;
+}

@@ -49,5 +49,21 @@
       <div class="welcome-text">Welcome, {{ session.get('full_name') }}</div>
       {% endif %} {% block content %}{% endblock %}
     </main>
+    <script>
+      setTimeout(function () {
+        const alerts = document.querySelectorAll(
+          ".alert, .flash, .flash-message",
+        );
+
+        alerts.forEach(function (alert) {
+          alert.style.transition = "opacity 0.5s ease";
+          alert.style.opacity = "0";
+
+          setTimeout(function () {
+            alert.remove();
+          }, 500);
+        });
+      }, 5000);
+    </script>
   </body>
 </html>
