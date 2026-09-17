@@ -1,0 +1,34 @@
+{% extends 'base.html' %} {% block title %}Secret Recovery Code | Makgobelo
+Lodge{% endblock %} {% block content %}
+
+<div class="auth-card">
+  <h1>Account Created Successfully</h1>
+
+  <p class="muted-text">
+    Your account has been created successfully. Please save your secret recovery
+    code below.
+  </p>
+
+  <p>You will need this code to reset your password if you forget it.</p>
+
+  <div class="secret-code-box">
+    <h2>{{ recovery_code }}</h2>
+  </div>
+
+  <p>
+    <strong>Important:</strong>
+    This code will only be shown once. Keep it safe and do not share it with
+    anyone.
+  </p>
+
+  <p>
+    Account email:
+    <strong>{{ email }}</strong>
+  </p>
+
+  <form method="POST" action="{{ url_for('auth.finish_registration') }}">
+    <button type="submit" class="btn">I have saved my secret code</button>
+  </form>
+</div>
+
+{% endblock %}

@@ -753,3 +753,17 @@ a {
   background: #888;
   border-radius: 10px;
 }
+.secret-code-box {
+  background: #f1f5f9;
+  border: 2px dashed #2c3e50;
+  padding: 18px;
+  text-align: center;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.secret-code-box h2 {
+  letter-spacing: 3px;
+  color: #2c3e50;
+  margin: 0;
+}
